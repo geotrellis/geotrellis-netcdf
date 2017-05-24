@@ -53,3 +53,7 @@ lazy val root = (project in file("."))
 lazy val gddp = (project in file("gddp"))
   .dependsOn(root)
   .settings(commonSettings: _*)
+
+lazy val loca = (project in file("loca"))
+  .dependsOn(root)
+  .settings(commonSettings: _*)
