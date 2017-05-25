@@ -44,7 +44,7 @@ lazy val commonSettings = Seq(
     "edu.ucar" % "cdm" % "5.0.0-SNAPSHOT",
     "org.apache.hadoop" % "hadoop-client" % "2.7.3" exclude("javax.servlet", "servlet-api")
   ),
-  initialCommands in console += "import ucar.nc2._"
+  initialCommands in console += "import ucar.nc2._\nimport ucar.unidata.io.s3._\n"
 )
 
 lazy val root = (project in file("."))
