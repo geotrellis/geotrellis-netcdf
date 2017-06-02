@@ -43,9 +43,6 @@ object Gddp {
     val geojsonUri =
       if (args.size > 1) args(1)
       else "./geojson/CA.geo.json"
-    val tiles =
-      if (args.size > 2) args(2).toInt
-      else 7
 
     val polygon =
       scala.io.Source.fromFile(geojsonUri, "UTF-8")
@@ -53,6 +50,7 @@ object Gddp {
         .mkString
         .extractGeometries[Polygon]
         .head
+    val extent = Extent(-360 + 1/8.0, -90 + 1/8.0, 0 - 1/8.0, 90 - 1/8.0)
 
     // Establish Spark Context
     val sparkConf = (new SparkConf())
@@ -65,7 +63,7 @@ object Gddp {
     val sparkContext = new SparkContext(sparkConf)
     implicit val sc = sparkContext
 
-    val rdd = sc.parallelize(Range(0, tiles))
+    val rdd = sc.parallelize(Range(0, 365))
       .mapPartitions({ itr =>
         val ncfile = NetcdfFile.open(netcdfUri)
         val vs = ncfile.getVariables()
@@ -78,19 +76,20 @@ object Gddp {
           val ucarType = ucarVariable.getDataType()
           val Array(y, x) = ucarVariable.getShape()
           val array = ucarVariable.read().get1DJavaArray(ucarType).asInstanceOf[Array[Float]]
-          FloatUserDefinedNoDataArrayTile(array, x, y, FloatUserDefinedNoDataCellType(nodata))
+          val tile = FloatUserDefinedNoDataArrayTile(array, x, y, FloatUserDefinedNoDataCellType(nodata))
+          tile.rotate180.flipVertical
         })
       })
 
-    // rdd.foreach({ tasmin => println(tasmin) })
-
+    // Save first tile to disk as a PNG
     val tile = rdd.first()
     val histogram = StreamingHistogram.fromTile(tile)
     val breaks = histogram.quantileBreaks(1<<15)
     val ramp = ColorRamps.BlueToRed.toColorMap(breaks)
-    val png = tile.rotate180.flipVertical.renderPng(ramp).bytes
-
+    val png = tile.renderPng(ramp).bytes
     dump(png, new File("/tmp/gddp.png"))
+
+    val californias = rdd.map({ tile => tile.mask(extent, polygon) })
     sparkContext.stop
   }
 }
