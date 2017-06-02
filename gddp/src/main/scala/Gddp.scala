@@ -8,6 +8,8 @@ import geotrellis.spark._
 import geotrellis.spark.io._
 import geotrellis.spark.io.hadoop._
 import geotrellis.spark.io.index._
+import geotrellis.vector._
+import geotrellis.vector.io._
 
 import org.apache.log4j.Logger
 import org.apache.spark.rdd.RDD
@@ -34,13 +36,23 @@ object Gddp {
     * Main
     */
   def main(args: Array[String]) : Unit = {
-    val uri =
+    val netcdfUri =
       if (args.size > 0) args(0)
       // else "s3://nasanex/NEX-GDDP/BCSD/rcp85/day/atmos/tasmin/r1i1p1/v1.0/tasmin_day_BCSD_rcp85_r1i1p1_inmcm4_2099.nc"
       else "/tmp/tasmin_day_BCSD_rcp85_r1i1p1_inmcm4_2099.nc"
+    val geojsonUri =
+      if (args.size > 1) args(1)
+      else "./geojson/CA.geo.json"
     val tiles =
-      if (args.size > 1) args(1).toInt
+      if (args.size > 2) args(2).toInt
       else 7
+
+    val polygon =
+      scala.io.Source.fromFile(geojsonUri, "UTF-8")
+        .getLines
+        .mkString
+        .extractGeometries[Polygon]
+        .head
 
     // Establish Spark Context
     val sparkConf = (new SparkConf())
@@ -55,7 +67,7 @@ object Gddp {
 
     val rdd = sc.parallelize(Range(0, tiles))
       .mapPartitions({ itr =>
-        val ncfile = NetcdfFile.open(uri)
+        val ncfile = NetcdfFile.open(netcdfUri)
         val vs = ncfile.getVariables()
         val tasmin = vs.get(3)
         val attribs = tasmin.getAttributes()
