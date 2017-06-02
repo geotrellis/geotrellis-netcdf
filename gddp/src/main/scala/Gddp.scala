@@ -1,7 +1,9 @@
 package com.example.gddp
 
 import geotrellis.raster._
+import geotrellis.raster.histogram.StreamingHistogram
 import geotrellis.raster.io._
+import geotrellis.raster.render.ColorRamps
 import geotrellis.spark._
 import geotrellis.spark.io._
 import geotrellis.spark.io.hadoop._
@@ -12,10 +14,21 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkConf, SparkContext}
 import ucar.nc2._
 
+import java.io._
 
 object Gddp {
 
   val logger = Logger.getLogger(Gddp.getClass)
+
+  /**
+    * Dump bytes to disk [1]
+    *
+    * 1. https://stackoverflow.com/questions/29978264/how-to-write-the-contents-of-a-scala-stream-to-a-file
+    */
+  def dump(data: Array[Byte], file: File ) = {
+    val target = new BufferedOutputStream( new FileOutputStream(file) );
+    try data.foreach( target.write(_) ) finally target.close;
+  }
 
   /**
     * Main
@@ -23,7 +36,8 @@ object Gddp {
   def main(args: Array[String]) : Unit = {
     val uri =
       if (args.size > 0) args(0)
-      else "s3://nasanex/NEX-GDDP/BCSD/rcp85/day/atmos/tasmin/r1i1p1/v1.0/tasmin_day_BCSD_rcp85_r1i1p1_inmcm4_2099.nc"
+      // else "s3://nasanex/NEX-GDDP/BCSD/rcp85/day/atmos/tasmin/r1i1p1/v1.0/tasmin_day_BCSD_rcp85_r1i1p1_inmcm4_2099.nc"
+      else "/tmp/tasmin_day_BCSD_rcp85_r1i1p1_inmcm4_2099.nc"
     val tiles =
       if (args.size > 1) args(1).toInt
       else 7
@@ -56,8 +70,15 @@ object Gddp {
         })
       })
 
-    rdd.foreach({ tasmin => println(tasmin) })
+    // rdd.foreach({ tasmin => println(tasmin) })
 
+    val tile = rdd.first()
+    val histogram = StreamingHistogram.fromTile(tile)
+    val breaks = histogram.quantileBreaks(1<<15)
+    val ramp = ColorRamps.BlueToRed.toColorMap(breaks)
+    val png = tile.rotate180.flipVertical.renderPng(ramp).bytes
+
+    dump(png, new File("/tmp/gddp.png"))
     sparkContext.stop
   }
 }
