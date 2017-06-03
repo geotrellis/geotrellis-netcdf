@@ -50,7 +50,7 @@ object Loca {
         itr.map({ n =>
           val ucarVariable = tasmax.slice(0, n)
           val ucarType = ucarVariable.getDataType()
-          val Array(x, y) = ucarVariable.getShape()
+          val Array(y, x) = ucarVariable.getShape()
           val array = ucarVariable.read().get1DJavaArray(ucarType).asInstanceOf[Array[Float]]
           FloatUserDefinedNoDataArrayTile(array, x, y, FloatUserDefinedNoDataCellType(nodata))
         })
