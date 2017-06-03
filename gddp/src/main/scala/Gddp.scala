@@ -4,6 +4,7 @@ import geotrellis.raster._
 import geotrellis.raster.histogram.StreamingHistogram
 import geotrellis.raster.io._
 import geotrellis.raster.render.ColorRamps
+import geotrellis.raster.summary.polygonal.{MinDoubleSummary, MeanSummary}
 import geotrellis.spark._
 import geotrellis.spark.io._
 import geotrellis.spark.io.hadoop._
@@ -90,6 +91,12 @@ object Gddp {
     dump(png, new File("/tmp/gddp.png"))
 
     val californias = rdd.map({ tile => tile.mask(extent, polygon) })
+    val means = californias.map({ tile => MeanSummary.handleFullTile(tile).mean }).collect().toList
+    val mins = californias.map({ tile => MinDoubleSummary.handleFullTile(tile) }).collect().toList
+
     sparkContext.stop
+
+    println(s"MEANS: $means")
+    println(s"MINS: $mins")
   }
 }
