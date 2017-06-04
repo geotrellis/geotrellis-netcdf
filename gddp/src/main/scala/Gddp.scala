@@ -44,6 +44,10 @@ object Gddp {
     val geojsonUri =
       if (args.size > 1) args(1)
       else "./geojson/CA.geo.json"
+    val latLng =
+      if (args.size > 2) args(2)
+      else "33.897,-118.225"
+    val Array(lat, lon) = latLng.split(",").map(_.toDouble)
 
     // Get first tile and NODATA value
     val ncfile = NetcdfFile.open(netcdfUri)
@@ -90,6 +94,10 @@ object Gddp {
     val x = xSliceStop - xSliceStart + 1
     val y = ySliceStop - ySliceStart + 1
 
+    // Get slice positions for the query point
+    val xSlice = math.round(4 * (lon - (-360 + 1/8.0))).toInt
+    val ySlice = math.round(4 * (lat - (-90 + 1/8.0))).toInt
+
     // Establish Spark Context
     val sparkConf = (new SparkConf())
       .setAppName("GDDP")
@@ -124,9 +132,25 @@ object Gddp {
     val means = californias.map({ tile => MeanSummary.handleFullTile(tile).mean }).collect().toList
     val mins = californias.map({ tile => MinDoubleSummary.handleFullTile(tile) }).collect().toList
 
+    // Get values for the given query point
+    val values = sc.parallelize(Range(0, 365))
+      .mapPartitions({ itr =>
+        val ncfile = NetcdfFile.open(netcdfUri)
+        val tasmin = ncfile.getVariables().get(3)
+
+        itr.map({ t =>
+          tasmin
+            .read(s"$t,$ySlice,$xSlice")
+            .getFloat(0)
+        })
+      })
+      .collect()
+      .toList
+
     sparkContext.stop
 
     println(s"MEANS: $means")
     println(s"MINS: $mins")
+    println(s"VALUES: $values")
   }
 }
