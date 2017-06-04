@@ -45,13 +45,50 @@ object Gddp {
       if (args.size > 1) args(1)
       else "./geojson/CA.geo.json"
 
+    // Get first tile and NODATA value
+    val ncfile = NetcdfFile.open(netcdfUri)
+    val vs = ncfile.getVariables()
+    val ucarType = vs.get(1).getDataType()
+    val latArray = vs.get(1).read().get1DJavaArray(ucarType).asInstanceOf[Array[Float]]
+    val lonArray = vs.get(2).read().get1DJavaArray(ucarType).asInstanceOf[Array[Float]]
+    val attribs = vs.get(3).getAttributes()
+    val nodata = attribs.get(0).getValues().getFloat(0)
+    val wholeTile = {
+      val tileData = vs.get(3).slice(0, 0)
+      val Array(y, x) = tileData.getShape()
+      val array = tileData.read().get1DJavaArray(ucarType).asInstanceOf[Array[Float]]
+      FloatUserDefinedNoDataArrayTile(array, x, y, FloatUserDefinedNoDataCellType(nodata)).rotate180.flipVertical
+    }
+
+    // Save first tile to disk as a PNG
+    val histogram = StreamingHistogram.fromTile(wholeTile)
+    val breaks = histogram.quantileBreaks(1<<15)
+    val ramp = ColorRamps.BlueToRed.toColorMap(breaks)
+    val png = wholeTile.renderPng(ramp).bytes
+    dump(png, new File("/tmp/gddp.png"))
+
+    // Get polygon
     val polygon =
       scala.io.Source.fromFile(geojsonUri, "UTF-8")
         .getLines
         .mkString
         .extractGeometries[Polygon]
         .head
-    val extent = Extent(-360 + 1/8.0, -90 + 1/8.0, 0 - 1/8.0, 90 - 1/8.0)
+    val polygonExtent = polygon.envelope
+
+    // Get extent, slice positions, and tile size (in pixels) for the
+    // area around the query polygon
+    val xSliceStart = math.floor(4 * (polygonExtent.xmin - (-360 + 1/8.0))).toInt // start at 1/8 degrees and proceed in increments of 1/4 degrees
+    val xSliceStop = math.ceil(4 * (polygonExtent.xmax - (-360 + 1/8.0))).toInt
+    val ySliceStart = math.floor(4 * (polygonExtent.ymin - (-90 + 1/8.0))).toInt // start at (-90 + 1/8) degrees and proceed in increments of 1/4 degrees
+    val ySliceStop = math.ceil(4 * (polygonExtent.ymax - (-90 + 1/8.0))).toInt
+    val extent = Extent( // Probably only works in intersection of Northern and Western hemispheres
+      lonArray(xSliceStart) + (-360 + 1/8.0),
+      latArray(ySliceStart),
+      lonArray(xSliceStop+1) + (-360 + 1/8.0),
+      latArray(ySliceStop+1))
+    val x = xSliceStop - xSliceStart + 1
+    val y = ySliceStop - ySliceStart + 1
 
     // Establish Spark Context
     val sparkConf = (new SparkConf())
@@ -64,32 +101,25 @@ object Gddp {
     val sparkContext = new SparkContext(sparkConf)
     implicit val sc = sparkContext
 
+    // Get RDD of tiles for entire year
     val rdd = sc.parallelize(Range(0, 365))
       .mapPartitions({ itr =>
         val ncfile = NetcdfFile.open(netcdfUri)
-        val vs = ncfile.getVariables()
-        val tasmin = vs.get(3)
-        val attribs = tasmin.getAttributes()
-        val nodata = attribs.get(0).getValues().getFloat(0)
+        val tasmin = ncfile.getVariables().get(3)
 
-        itr.map({ n =>
-          val ucarVariable = tasmin.slice(0, n)
-          val ucarType = ucarVariable.getDataType()
-          val Array(y, x) = ucarVariable.getShape()
-          val array = ucarVariable.read().get1DJavaArray(ucarType).asInstanceOf[Array[Float]]
-          val tile = FloatUserDefinedNoDataArrayTile(array, x, y, FloatUserDefinedNoDataCellType(nodata))
-          tile.rotate180.flipVertical
+        itr.map({ t =>
+          val array = tasmin
+            .read(s"$t,$ySliceStart:$ySliceStop,$xSliceStart:$xSliceStop")
+            .get1DJavaArray(ucarType).asInstanceOf[Array[Float]]
+          FloatUserDefinedNoDataArrayTile(array, x, y, FloatUserDefinedNoDataCellType(nodata)).rotate180.flipVertical
         })
       })
 
     // Save first tile to disk as a PNG
-    val tile = rdd.first()
-    val histogram = StreamingHistogram.fromTile(tile)
-    val breaks = histogram.quantileBreaks(1<<15)
-    val ramp = ColorRamps.BlueToRed.toColorMap(breaks)
-    val png = tile.renderPng(ramp).bytes
-    dump(png, new File("/tmp/gddp.png"))
+    dump(rdd.first().renderPng(ramp).bytes, new File("/tmp/gddp1.png"))
+    dump(rdd.first().mask(extent, polygon).renderPng(ramp).bytes, new File("/tmp/gddp2.png"))
 
+    // Compute means, mins for the given query polygon
     val californias = rdd.map({ tile => tile.mask(extent, polygon) })
     val means = californias.map({ tile => MeanSummary.handleFullTile(tile).mean }).collect().toList
     val mins = californias.map({ tile => MinDoubleSummary.handleFullTile(tile) }).collect().toList
