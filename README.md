@@ -8,7 +8,37 @@ The results of that are shown below.
 
 # Dependencies #
 
-# This Code #
+This code relies on two main dependencies to do most of the work: NetCDF Java and GeoTrellis.
+
+## NetCDF Java ##
+
+Any [recent snapshot of 5.0.0 branch of NetCDF Java code](https://github.com/Unidata/thredds/tree/5.0.0) should be sufficient to compile and run this code,
+but if you would like to be able to read data directly from S3 and/or HDFS, you must compile and locally-publish a [feature branch](https://github.com/Unidata/thredds/tree/feature/s3+hdfs) contributed by the present author.
+To compile and locally-publish the feature branch, try something like the following:
+
+```bash
+$ git clone 'git@github.com:Unidata/thredds.git'
+$ cd thredds/
+$ git fetch origin 'feature/s3+hdfs:feature/s3+hdfs'
+$ ./gradlew assemble
+$ ./gradlew publishToMavenLocal
+```
+
+Pulling this dependency from the maintainer's [Maven repository](http://artifacts.unidata.ucar.edu/) should also work.
+
+## GeoTrellis ##
+
+This code requires a [1.2.0-SNAPSHOT](https://github.com/locationtech/geotrellis) or later version of GeoTrellis.
+That is due to the fact that recently-added tile transformation functions are used in this code which are not present in earlier version of GeoTrellis.
+To compile and locally-publish GeoTrellis, try something like the following:
+
+```bash
+$ git clone 'git@github.com:locationtech/geotrellis.git'
+$ cd geotrellis/
+$ ./scripts/publish-local.sh
+```
+
+# Structure Of This Code #
 
 # Example #
 
