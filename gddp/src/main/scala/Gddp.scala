@@ -4,7 +4,7 @@ import geotrellis.raster._
 import geotrellis.raster.histogram.StreamingHistogram
 import geotrellis.raster.io._
 import geotrellis.raster.render.ColorRamps
-import geotrellis.raster.summary.polygonal.{MinDoubleSummary, MeanSummary}
+import geotrellis.raster.summary.polygonal.{MaxDoubleSummary, MinDoubleSummary, MeanSummary}
 import geotrellis.spark._
 import geotrellis.spark.io._
 import geotrellis.spark.io.hadoop._
@@ -129,8 +129,9 @@ object Gddp {
 
     // Compute means, mins for the given query polygon
     val californias = rdd.map({ tile => tile.mask(extent, polygon) })
-    val means = californias.map({ tile => MeanSummary.handleFullTile(tile).mean }).collect().toList
     val mins = californias.map({ tile => MinDoubleSummary.handleFullTile(tile) }).collect().toList
+    val means = californias.map({ tile => MeanSummary.handleFullTile(tile).mean }).collect().toList
+    val maxs = californias.map({ tile => MaxDoubleSummary.handleFullTile(tile) }).collect().toList
 
     // Get values for the given query point
     val values = sc.parallelize(Range(0, 365))
@@ -149,8 +150,9 @@ object Gddp {
 
     sparkContext.stop
 
-    println(s"MEANS: $means")
     println(s"MINS: $mins")
+    println(s"MEANS: $means")
+    println(s"MAXS: $maxs")
     println(s"VALUES: $values")
   }
 }
