@@ -1,10 +1,12 @@
 # Introduction #
 
-This repository contains an example project that demonstrates how to read NetCDF data into a Spark/Scala program using [NetCDF Java](http://www.unidata.ucar.edu/software/thredds/current/netcdf-java/) and manipulate the data using [GeoTrellis](https://geotrellis.io/).
+This repository contains an example project that demonstrates how to read NetCDF data from S3 or a local filesystem into a Spark/Scala program using [NetCDF Java](http://www.unidata.ucar.edu/software/thredds/current/netcdf-java/) and manipulate the data using [GeoTrellis](https://geotrellis.io/).
 The ability to easily and efficiently read NetCDF data into a GeoTrellis program opens the possibility for those who are familiar with GeoTrellis and its related and surrounding tools to branch into climate research, and also makes it possible for climate researchers to take advantage of the many benefits that GeoTrellis can provide.
 Because GeoTrellis is a raster-oriented library, the approach that is demonstrated in this repository is to use the NetCDF library to load and query datasets and present the results as Java arrays which can be readily turned into GeoTrellis tiles.
 Once the data have been transformed into GeoTrellis tiles, they can be masked, summarized, and/or manipulated like any other GeoTrellis raster data.
 The results of that are shown below.
+
+In the last section there is a brief discussion of ideas for improving the S3 Reader.
 
 # Compiling And Running #
 
@@ -121,7 +123,7 @@ Measurements show that about 190 - 200 megabytes are downloaded in total.
 Two separate sweeps are taken through the file (one to produce the clipped tiles and one to do point reads), so effectively the cost of taking one pass through the file reading <= 32 kilobyte subsets of each tile is about 95 - 100 megabytes.
 (The file is 767 megabytes, the amount downloaded varies with the number of executors used.)
 
-There is still room for improvement in the S3 functionality, that is [discussed below](#Future_Work).
+There is still room for improvement in the S3 functionality, that is [discussed below](#future-work-better-s3-caching).
 
 # Structure Of This Code #
 
@@ -140,9 +142,9 @@ def open(uri: String) = {
 ```
 is where the local or remote NetCDF file is opened.
 
-Notice that there are different code paths for S3 versus other files; that is not strictly necessary and is done for efficiency.
+Notice that there are different code paths for S3 versus other locations; that is not strictly necessary and is done for efficiency.
 `NetcdfFile.open("s3://...")` returns a perfectly working `NetcdfFile`, but its underlying buffer size and cache behavior are not optimal for GDDP.
-That is further discussed [below](#Future_Work).
+That is further discussed [below](#future-work-better-s3-caching).
 
 ## Whole Tile Read ##
 
@@ -195,7 +197,28 @@ tasmin
   .read(s"$t,$ySlice,$xSlice")
   .getFloat(0)
 ```
-uses the slicing capability of the `read` method to get the temperature value at a particlar time, at a particular latitude, and at a particular longitude.
+uses the slicing capability of the `read` method to get the temperature value at a particular time, at a particular latitude, and at a particular longitude.
 
-# Future Work #
+# Future Work: Better S3 Caching #
 
+As mentioned above [here](#example-2-file-on-s3) and [here](#open), the efficiency of reading from S3 is an area for future improvement.
+
+There are many different types of files that have the extension `.nc`, in this brief discussion we will restrict attention the GDDP dataset;
+those files store the temperature data in compressed chunks of roughly 32 KB in size, and those chunks are indexed by a [B-tree](https://en.wikipedia.org/wiki/B-tree) with internal nodes of size 16 KB.
+
+Within the S3 reader, a simple FIFO cache has been implemented.
+The `S3RandomAccessFile` implementation emulates and a random access file, and for compatibility must maintain a read/write buffer.
+For simplicity, the cache block size used is twice the size of that buffer.
+
+When one makes a call of the form `NetcdfFile.open("s3://...")`, the buffer size used is 512 KB which results in 1 MB cache blocks.
+That implies that every request to read an uncached datum incurrs a 1 MB download.
+For many access patterns that is not a problem -- and in fact is the intended behavior -- but reading small windows or single pixels from different daily tiles is not a good access pattern for this scheme.
+Such a pattern would result in a lot of extra data being downloaded and cached when accessing leaves, as well as the eviction of cache blocks containing internals nodes (which presumably may be revisited) in favor of cache blocks containing single-use leaf nodes.
+The special-case that contains the line `raf = new ucar.unidata.io.s3.S3RandomAccessFile(uri, 1<<15, 1<<24)` creates an `S3RandomAccessFile` with a 32 KB read/write buffer and 64 KB cache blocks.
+The 64 KB cache blocks are a much better fit than the 1 MB ones that would have been created by default.
+
+Examination of the access patterns generated by point queries, e.g. `read("107,22,7")`, shows that accesses are in general not aligned to block boundaries which frequently results in two blocks being fetched when one would have done.
+There is also the question of unnecessary cache evication that was raised above.
+One of many ideas for improvement is to implement a cache that pays attention to the particular structure of the file rather than just managing blocks of bytes as the current one does.
+That can potentially be done by inspecting the program state before a read is performed to determine whether the request is for an internal node or a leaf.
+If it is an internal node, the entire node can be cached (or returned from the cache), and if it is a leaf the request can be serviced without involving the cache.
