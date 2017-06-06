@@ -1,6 +1,6 @@
 # Introduction #
 
-This repository contains an example project that demonstrates how to read NetCDF data into a Spark/Scala program using [NetCDF Java](https://github.com/Unidata/thredds/) and manipulate the data using [GeoTrellis](https://github.com/locationtech/geotrellis).
+This repository contains an example project that demonstrates how to read NetCDF data into a Spark/Scala program using [NetCDF Java](http://www.unidata.ucar.edu/software/thredds/current/netcdf-java/) and manipulate the data using [GeoTrellis](https://geotrellis.io/).
 The ability to easily and efficiently read NetCDF data into a GeoTrellis program opens the possibility for those who are familiar with GeoTrellis and its related and surrounding tools to branch into climate research, and also makes it possible for climate researchers to take advantage of the many benefits that GeoTrellis can provide.
 Because GeoTrellis is a raster-oriented library, the approach that is demonstrated in this repository is to use the NetCDF library to load and query datasets and present the results as Java arrays which can be readily turned into GeoTrellis tiles.
 Once the data have been transformed into GeoTrellis tiles, they can be masked, summarized, and/or manipulated like any other GeoTrellis raster data.
@@ -14,19 +14,17 @@ This code relies on two main dependencies to do most of the work: NetCDF Java an
 
 ### NetCDF Java ###
 
-Any [recent snapshot of 5.0.0 branch of NetCDF Java code](https://github.com/Unidata/thredds/tree/5.0.0) should be sufficient to compile and run this code,
-but if you would like to be able to read data directly from S3 and/or HDFS, you must compile and locally-publish a [partiular feature branch](https://github.com/Unidata/thredds/tree/feature/s3+hdfs) contributed by the present author.
+Because the S3 and HDFS reading capability are not present in mainline NetCDF Java, you must compile and locally-publish a [partiular feature branch](https://github.com/Unidata/thredds/tree/feature/s3+hdfs) that was recently contributed by the present author and will hopefully make its way into the mainline at some point.
 To compile and locally-publish the feature branch, try something like the following:
 
 ```bash
 git clone 'git@github.com:Unidata/thredds.git'
 cd thredds/
 git fetch origin 'feature/s3+hdfs:feature/s3+hdfs'
+git checkout 'feature/s3+hdfs'
 ./gradlew assemble
 ./gradlew publishToMavenLocal
 ```
-
-If you do not want or need the S3 and/or HDFS capability, pulling this dependency from the maintainer's [Maven repository](http://artifacts.unidata.ucar.edu/) should work.
 
 ### GeoTrellis ###
 
@@ -63,7 +61,7 @@ The program will produce several outputs:
    - A png of the first tile clipped to the extent of the GeoJSON polygon and masked against that polygon, that will appear in `/tmp/gddp2.png`.
    - Time series of the minimum, mean, and maximum temperatures in the area enclosed by the polygon, as well as temperatures at the given point.
 
-## Example ##
+## Example 1 (Local File) ##
 
 If you download the file `s3://nasanex/NEX-GDDP/BCSD/rcp85/day/atmos/tasmin/r1i1p1/v1.0/tasmin_day_BCSD_rcp85_r1i1p1_inmcm4_2099.nc` and put it into a local file called `/tmp/tasmin_day_BCSD_rcp85_r1i1p1_inmcm4_2099.nc`,
 then type:
@@ -93,6 +91,27 @@ VALUES: List(292.7082, 293.20105, 296.84433, 292.93924, 290.55487, 289.90823, 29
 
 Here are the time series in graphical form (this program did not produce the graph):
 ![plot](https://cloud.githubusercontent.com/assets/11281373/26793804/59526952-49ed-11e7-8edd-b3b68e5036b0.png)
+
+This takes about 10 seconds to complete.
+
+## Example 2 (File on S3) ##
+
+We can re-run the same example, this time reading the data directly from S3:
+
+```bash
+$SPARK_HOME/bin/spark-submit --master 'local[*]' \
+   gddp/target/scala-2.11/gddp-assembly-0.22.7.jar \
+   s3://nasanex/NEX-GDDP/BCSD/rcp85/day/atmos/tasmin/r1i1p1/v1.0/tasmin_day_BCSD_rcp85_r1i1p1_inmcm4_2099.nc \
+   ./geojson//CA.geo.json \
+   '33.897,-118.225'
+```
+
+The results should be the same as above, but generally take about 2 minutes and 40 seconds in my experience (of course, this will vary with connection speed and proximity to the S3 bucket).
+
+Measurements show that about 190 - 200 megabytes are downloaded in total.
+Two separate sweeps are taken through the file (one to produce the clipped tiles and one to do point reads), so effectively the cost of taking one pass through the file reading <= 32 kilobyte subsets of each tile is about 95 - 100 megabytes.
+(The file is 767 megabytes, the amount downloaded varies with the number of executors used.)
+We believe that there is still room for improvement in the S3 functionality, that is discussed below.
 
 # Structure Of This Code #
 
