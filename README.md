@@ -211,8 +211,9 @@ The `S3RandomAccessFile` implementation emulates and a random access file, and f
 For simplicity, the cache block size used is twice the size of that buffer.
 
 When one makes a call of the form `NetcdfFile.open("s3://...")`, the buffer size used is 512 KB which results in 1 MB cache blocks.
-That implies that every request to read an uncached datum incurrs a 1 MB download.
-For many access patterns that is not a problem -- and in fact is the intended behavior -- but reading small windows or single pixels from different daily tiles is not a good access pattern for this scheme.
+That implies that every request to read an uncached datum incurs a 1 MB download.
+For many access patterns, such as reading random whole tiles, that is not a problem and in fact is the intended behavior.
+However, reading small windows or single pixels from different tiles is not a good access pattern for this scheme.
 Such a pattern would result in a lot of extra data being downloaded and cached when accessing leaves, as well as the eviction of cache blocks containing internals nodes (which presumably may be revisited) in favor of cache blocks containing single-use leaf nodes.
 The special-case that contains the line `raf = new ucar.unidata.io.s3.S3RandomAccessFile(uri, 1<<15, 1<<24)` creates an `S3RandomAccessFile` with a 32 KB read/write buffer and 64 KB cache blocks.
 The 64 KB cache blocks are a much better fit than the 1 MB ones that would have been created by default.
