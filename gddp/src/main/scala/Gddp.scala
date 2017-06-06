@@ -15,6 +15,7 @@ import geotrellis.vector.io._
 import org.apache.log4j.Logger
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkConf, SparkContext}
+import org.apache.spark.storage.StorageLevel
 import ucar.nc2._
 
 import java.io._
@@ -34,6 +35,18 @@ object Gddp {
   }
 
   /**
+    * Return a ucar.nc2.NetcdfFile
+    */
+  def open(uri: String) = {
+    if (uri.startsWith("s3:")) {
+      val raf = new ucar.unidata.io.s3.S3RandomAccessFile(uri, 1<<15, 1<<24)
+      NetcdfFile.open(raf, uri, null, null)
+    } else {
+      NetcdfFile.open(uri)
+    }
+  }
+
+  /**
     * Main
     */
   def main(args: Array[String]) : Unit = {
@@ -50,7 +63,7 @@ object Gddp {
     val Array(lat, lon) = latLng.split(",").map(_.toDouble)
 
     // Get first tile and NODATA value
-    val ncfile = NetcdfFile.open(netcdfUri)
+    val ncfile = open(netcdfUri)
     val vs = ncfile.getVariables()
     val ucarType = vs.get(1).getDataType()
     val latArray = vs.get(1).read().get1DJavaArray(ucarType).asInstanceOf[Array[Float]]
@@ -110,9 +123,9 @@ object Gddp {
     implicit val sc = sparkContext
 
     // Get RDD of tiles for entire year
-    val rdd = sc.parallelize(Range(0, 365))
+    val rdd1 = sc.parallelize(Range(0, 365))
       .mapPartitions({ itr =>
-        val ncfile = NetcdfFile.open(netcdfUri)
+        val ncfile = open(netcdfUri)
         val tasmin = ncfile.getVariables().get(3)
 
         itr.map({ t =>
@@ -122,13 +135,15 @@ object Gddp {
           FloatUserDefinedNoDataArrayTile(array, x, y, FloatUserDefinedNoDataCellType(nodata)).rotate180.flipVertical
         })
       })
+      .persist(StorageLevel.MEMORY_AND_DISK_SER)
+    rdd1.count
 
     // Save first tile to disk as a PNG
-    dump(rdd.first().renderPng(ramp).bytes, new File("/tmp/gddp1.png"))
-    dump(rdd.first().mask(extent, polygon).renderPng(ramp).bytes, new File("/tmp/gddp2.png"))
+    dump(rdd1.first().renderPng(ramp).bytes, new File("/tmp/gddp1.png"))
+    dump(rdd1.first().mask(extent, polygon).renderPng(ramp).bytes, new File("/tmp/gddp2.png"))
 
     // Compute means, mins for the given query polygon
-    val californias = rdd.map({ tile => tile.mask(extent, polygon) })
+    val californias = rdd1.map({ tile => tile.mask(extent, polygon) })
     val mins = californias.map({ tile => MinDoubleSummary.handleFullTile(tile) }).collect().toList
     val means = californias.map({ tile => MeanSummary.handleFullTile(tile).mean }).collect().toList
     val maxs = californias.map({ tile => MaxDoubleSummary.handleFullTile(tile) }).collect().toList
@@ -136,7 +151,7 @@ object Gddp {
     // Get values for the given query point
     val values = sc.parallelize(Range(0, 365))
       .mapPartitions({ itr =>
-        val ncfile = NetcdfFile.open(netcdfUri)
+        val ncfile = open(netcdfUri)
         val tasmin = ncfile.getVariables().get(3)
 
         itr.map({ t =>
