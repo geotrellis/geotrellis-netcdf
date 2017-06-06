@@ -14,7 +14,7 @@ This code relies on two main dependencies to do most of the work: NetCDF Java an
 
 ### NetCDF Java ###
 
-Because the S3 and HDFS reading capability are not present in mainline NetCDF Java, you must compile and locally-publish a [partiular feature branch](https://github.com/Unidata/thredds/tree/feature/s3+hdfs) that was recently contributed by the present author and will hopefully make its way into the mainline at some point.
+Because the S3 and HDFS reading capability are not present in mainline NetCDF Java, you must compile and locally-publish a [particular feature branch](https://github.com/Unidata/thredds/tree/feature/s3+hdfs) that was recently contributed by the present author and will hopefully make its way into the mainline at some point.
 To compile and locally-publish the feature branch, try something like the following:
 
 ```bash
@@ -30,13 +30,14 @@ git checkout 'feature/s3+hdfs'
 
 This code requires a [1.2.0-SNAPSHOT](https://github.com/locationtech/geotrellis) or later version of GeoTrellis.
 That is due to the fact that recently-added tile transformation functions are used in this code which are not present in earlier version of GeoTrellis.
-To compile and locally-publish GeoTrellis, try something like the following:
+To compile and locally-publish GeoTrellis, try this:
 
 ```bash
 git clone 'git@github.com:locationtech/geotrellis.git'
 cd geotrellis/
 ./scripts/publish-local.sh
 ```
+
 ## Compile ##
 
 With the dependencies in place, compiling the code in this repository is straightforward:
@@ -47,10 +48,12 @@ sbt "project gddp" assembly
 
 ## Run ##
 
-To run the code from the root directory of the project, something like this should work:
+To run the code from the root directory of the project, try this:
 
 ```bash
-$SPARK_HOME/bin/spark-submit --master 'local[*]' gddp/target/scala-2.11/gddp-assembly-0.22.7.jar /tmp/gddp.nc /tmp/political_boundary.json '32.856388889,-90.4075'
+$SPARK_HOME/bin/spark-submit --master 'local[*]' \
+   gddp/target/scala-2.11/gddp-assembly-0.22.7.jar \
+   /tmp/gddp.nc /tmp/boundary.json '32.856388889,-90.4075'
 ```
 
 where the first argument (after the name of the jar file) is the name of a GDDP NetCDF file, the second argument is the name of a file that contains a polygon in GeoJSON format, and the third argument is a latitude-longitude pair.
@@ -67,7 +70,11 @@ If you download the file `s3://nasanex/NEX-GDDP/BCSD/rcp85/day/atmos/tasmin/r1i1
 then type:
 
 ```bash
-$SPARK_HOME/bin/spark-submit --master 'local[*]' gddp/target/scala-2.11/gddp-assembly-0.22.7.jar /tmp/tasmin_day_BCSD_rcp85_r1i1p1_inmcm4_2099.nc ./geojson//CA.geo.json '33.897,-118.225'
+$SPARK_HOME/bin/spark-submit --master 'local[*]' \
+   gddp/target/scala-2.11/gddp-assembly-0.22.7.jar \
+   /tmp/tasmin_day_BCSD_rcp85_r1i1p1_inmcm4_2099.nc \
+   ./geojson//CA.geo.json \
+   '33.897,-118.225'
 ```
 
 You will get the following results.
@@ -89,10 +96,11 @@ MAXS: List(293.6987609863281, 293.4059753417969, 296.8443298339844, 292.93923950
 VALUES: List(292.7082, 293.20105, 296.84433, 292.93924, 290.55487, 289.90823, 291.49646, 291.292, 290.19125, 290.29752, 291.30807, 287.21075, 289.83224, 284.07733, 291.28607, 290.5197, 293.05023, 290.01834, 290.62634, 296.0042, 294.7265, 296.67496, 293.814, 289.27795, 288.54807, 292.72394, 290.34406, 291.90012, 291.09796, 291.28616, 292.61237, 292.4619, 294.27078, 297.08112, 295.1556, 295.04993, 291.06168, 296.17084, 295.35748, 295.86917, 296.2025, 288.21942, 291.53064, 289.56323, 292.07068, 295.22385, 294.6864, 295.908, 296.1203, 291.01007, 287.0889, 287.0923, 284.78595, 282.5561, 283.19363, 288.502, 284.19522, 285.9576, 283.93478, 282.60132, 282.87802, 283.32504, 284.394, 287.34668, 286.561, 283.2228, 280.57468, 281.3531, 280.46478, 282.4374, 282.92157, 282.75208, 280.245, 280.18832, 277.37344, 277.9842, 277.45813, 282.215, 285.2746, 285.05444, 284.5563, 284.50632, 276.54214, 277.54868, 275.7071, 278.4978, 282.07388, 283.50284, 279.93674, 279.32132, 284.40698, 287.42154, 288.15417, 286.66046, 287.30093, 286.13257, 287.87347, 290.99512, 289.08908, 285.163, 284.5066, 286.70703, 286.60995, 287.74057, 287.49603, 285.70682, 283.85526, 286.8201, 291.79498, 291.9578, 292.48276, 292.44434, 288.41132, 286.54364, 285.9193, 285.1902, 285.11887, 287.35754, 287.8274, 288.621, 289.60965, 290.4715, 290.20667, 290.39404, 289.2234, 291.25583, 292.37253, 291.16898, 290.62042, 292.04428, 293.8359, 293.80576, 296.25058, 295.72098, 295.57996, 294.87143, 295.1048, 295.42032, 293.66525, 292.1078, 292.19812, 291.43097, 291.89062, 291.52768, 292.12955, 292.32904, 292.3408, 292.99487, 294.21936, 294.98447, 295.75952, 292.36444, 293.79315, 294.00284, 290.62445, 290.7234, 290.54483, 287.55356, 287.92523, 289.1805, 291.07358, 291.33682, 293.49844, 294.122, 295.4025, 295.10294, 294.0093, 290.12012, 289.3953, 290.38116, 289.78827, 290.81512, 292.3837, 293.0703, 292.65634, 289.352, 289.2106, 291.70987, 291.5855, 290.71106, 291.27597, 293.77444, 291.83145, 292.1063, 291.1015, 292.64685, 291.3985, 288.7875, 291.2516, 291.84497, 292.37762, 294.574, 292.80923, 292.5181, 294.57642, 296.4698, 297.66846, 296.47415, 295.13315, 291.31305, 295.3933, 294.02774, 294.91336, 293.86746, 294.06027, 291.96527, 291.30692, 291.1941, 293.06006, 293.3532, 294.10724, 291.76495, 295.04996, 294.57626, 294.9208, 295.85254, 297.24774, 297.10165, 295.87958, 295.84915, 293.86728, 294.14914, 295.72595, 295.79587, 295.3897, 295.93173, 298.09106, 297.82486, 298.10522, 298.95215, 298.3263, 299.52817, 299.36606, 299.19855, 297.32333, 296.95544, 296.01505, 295.78336, 297.02927, 297.32397, 296.87515, 296.29712, 295.26508, 294.9322, 295.31927, 296.59583, 298.04724, 298.70258, 298.3352, 297.6646, 297.3118, 296.7875, 296.68826, 297.73502, 296.27975, 293.2102, 290.19574, 292.1457, 289.3529, 288.66068, 291.7725, 293.3418, 291.8747, 291.3999, 293.42694, 297.47583, 296.3548, 293.00162, 291.7663, 289.30554, 289.2756, 288.937, 291.30762, 293.3711, 289.52914, 291.74707, 291.93985, 289.35147, 287.9378, 288.25085, 290.263, 292.05115, 293.5296, 291.9442, 294.25888, 292.1776, 290.79984, 291.13263, 291.7488, 290.97223, 288.5675, 289.09137, 288.83603, 285.5859, 284.76135, 284.35907, 284.11163, 284.22147, 287.67065, 287.23438, 282.6923, 279.8508, 284.07556, 284.67606, 285.38174, 286.37778, 286.08887, 286.47464, 286.70642, 285.91388, 283.98767, 281.90436, 285.77673, 286.27475, 285.19965, 284.1803, 280.55594, 280.82364, 280.98816, 281.21646, 278.43198, 279.00623, 280.40356, 282.50238, 282.23962, 283.39783, 278.1809, 280.26306, 283.2497, 279.54895, 279.90106, 287.36557, 286.81598, 285.8459, 287.45813, 282.3802, 284.8254, 285.99704, 286.0373, 288.16797, 286.56876, 283.9962, 286.10532, 285.80115, 283.52118, 285.4414, 281.40433, 281.72913, 280.09964, 277.39383, 279.9409, 283.61243, 285.27164, 291.4763, 285.9355, 286.3141, 287.81305, 286.07498, 284.3713, 282.11002, 280.8152, 281.6342, 283.81134, 283.137, 279.98343)
 ```
 
-Here are the time series in graphical form (this program did not produce the graph):
+Here are the time series in graphical form.
+(The code in this project did not produce graph, just the data.)
 ![plot](https://cloud.githubusercontent.com/assets/11281373/26793804/59526952-49ed-11e7-8edd-b3b68e5036b0.png)
 
-This takes about 10 seconds to complete.
+This program should take about 10 seconds to complete.
 
 ## Example 2 (File on S3) ##
 
@@ -101,19 +109,93 @@ We can re-run the same example, this time reading the data directly from S3:
 ```bash
 $SPARK_HOME/bin/spark-submit --master 'local[*]' \
    gddp/target/scala-2.11/gddp-assembly-0.22.7.jar \
-   s3://nasanex/NEX-GDDP/BCSD/rcp85/day/atmos/tasmin/r1i1p1/v1.0/tasmin_day_BCSD_rcp85_r1i1p1_inmcm4_2099.nc \
+   's3://nasanex/NEX-GDDP/BCSD/rcp85/day/atmos/tasmin/r1i1p1/v1.0/tasmin_day_BCSD_rcp85_r1i1p1_inmcm4_2099.nc' \
    ./geojson//CA.geo.json \
    '33.897,-118.225'
 ```
 
-The results should be the same as above, but generally take about 2 minutes and 40 seconds in my experience (of course, this will vary with connection speed and proximity to the S3 bucket).
+The output will be the same as above, but the process will take longer to complete -- generally about 2 minutes and 40 seconds in my experience.
+(Of course, this will vary with connection speed and proximity to the S3 bucket.)
 
 Measurements show that about 190 - 200 megabytes are downloaded in total.
 Two separate sweeps are taken through the file (one to produce the clipped tiles and one to do point reads), so effectively the cost of taking one pass through the file reading <= 32 kilobyte subsets of each tile is about 95 - 100 megabytes.
 (The file is 767 megabytes, the amount downloaded varies with the number of executors used.)
-We believe that there is still room for improvement in the S3 functionality, that is discussed below.
+
+There is still room for improvement in the S3 functionality, that is [discussed below](#Future_Work).
 
 # Structure Of This Code #
+
+## Open ##
+
+[This code](gddp/src/main/scala/Gddp.scala#L37-L47):
+```scala
+def open(uri: String) = {
+  if (uri.startsWith("s3:")) {
+    val raf = new ucar.unidata.io.s3.S3RandomAccessFile(uri, 1<<15, 1<<24)
+    NetcdfFile.open(raf, uri, null, null)
+  } else {
+    NetcdfFile.open(uri)
+  }
+}
+```
+is where the local or remote NetCDF file is opened.
+
+Notice that there are different code paths for S3 versus other files; that is not strictly necessary and is done for efficiency.
+`NetcdfFile.open("s3://...")` returns a perfectly working `NetcdfFile`, but its underlying buffer size and cache behavior are not optimal for GDDP.
+That is further discussed [below](#Future_Work).
+
+## Whole Tile Read ##
+
+[This code](gddp/src/main/scala/Gddp.scala#L65-L78):
+```scala
+val ncfile = open(netcdfUri)
+val vs = ncfile.getVariables()
+val ucarType = vs.get(1).getDataType()
+val latArray = vs.get(1).read().get1DJavaArray(ucarType).asInstanceOf[Array[Float]]
+val lonArray = vs.get(2).read().get1DJavaArray(ucarType).asInstanceOf[Array[Float]]
+val attribs = vs.get(3).getAttributes()
+val nodata = attribs.get(0).getValues().getFloat(0)
+val wholeTile = {
+  val tileData = vs.get(3).slice(0, 0)
+  val Array(y, x) = tileData.getShape()
+  val array = tileData.read().get1DJavaArray(ucarType).asInstanceOf[Array[Float]]
+  FloatUserDefinedNoDataArrayTile(array, x, y, FloatUserDefinedNoDataCellType(nodata)).rotate180.flipVertical
+}
+```
+is where the whole first tile (tile for day zero) is read into a GeoTrellis tile.
+
+Notice the assignments `latArray = vs.get(1)...`, `lonArray = vs.get(2)...`, and `tileData = vs.get(3)...`.
+These are enabled by prior knowledge that in GDDP files, the variable with index 1 is an array of latitudes, the variable with index 2 is an array of longitudes, and the variable with index 3 is three-dimensional temperature data.
+Perhaps a more robust way to do this would be to iterate through the list of variables and match against the string returned by `vs.get(i).getFullName()`, but the present approach is good enough for government work.
+
+The dimensions of the temperature data are time (in units of days), latitude, and longitude, in that order.
+`vs.get(3).slice(0, 0)` requests a slice with the first (0th) index of the first dimension fixed; it requests the whole tile from the first (0th) day.
+
+The assignment `nodata = attribs.get(0).getValues().getFloat(0)` gets the "fill value" for the temperature data which is used as the `NODATA` value for the GeoTrellis tile that is constructed.
+
+## Partial Tile Read ##
+
+[This code](gddp/src/main/scala/Gddp.scala#L132-L135):
+```scala
+val array = tasmin
+  .read(s"$t,$ySliceStart:$ySliceStop,$xSliceStart:$xSliceStop")
+  .get1DJavaArray(ucarType).asInstanceOf[Array[Float]]
+FloatUserDefinedNoDataArrayTile(array, x, y, FloatUserDefinedNoDataCellType(nodata)).rotate180.flipVertical
+```
+is where the partial tiles (matched to the extent of the query polygon) are read.
+Here, instead of using the `slice` method, the slicing functionality of the `read` method is used.
+The string that results from `s"$t,$ySliceStart:$ySliceStop,$xSliceStart:$xSliceStop"` will contain three descriptors separated by commas;
+the first is a time (specified by an integral index), the second is a latitude range (a range of integral indices with the start and end separated by a colon) and the last is a longitude range (again, a range of integral indices).
+
+## Point Read ##
+
+[This code](gddp/src/main/scala/Gddp.scala#L158-L160):
+```scala
+tasmin
+  .read(s"$t,$ySlice,$xSlice")
+  .getFloat(0)
+```
+uses the slicing capability of the `read` method to get the temperature value at a particlar time, at a particular latitude, and at a particular longitude.
 
 # Future Work #
 
