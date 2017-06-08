@@ -120,12 +120,15 @@ The output will be the same as above, but the process will take longer to comple
 (Of course, this will vary with connection speed and proximity to the S3 bucket.)
 
 Measurements show that about 190 - 200 megabytes are downloaded in total.
-Two separate sweeps are taken through the file (one to produce the clipped tiles and one to do point reads), so effectively the cost of taking one pass through the file reading <= 32 kilobyte subsets of each tile is about 95 - 100 megabytes.
+Two separate sweeps are taken through the file (one to produce the clipped tiles and one to do point reads).
+The cost of taking one pass through the file -- reading subsets of size 32 KB or less of each tile -- is about 95 - 100 megabytes.
 (The file is 767 megabytes, the amount downloaded varies with the number of executors used.)
 
 There is still room for improvement in the S3 functionality, that is [discussed below](#future-work-better-s3-caching).
 
 # Structure Of This Code #
+
+In this section, we will address some of the key points that can be found in this code.
 
 ## Open ##
 
@@ -142,7 +145,7 @@ def open(uri: String) = {
 ```
 is where the local or remote NetCDF file is opened.
 
-Notice that there are different code paths for S3 versus other locations; that is not strictly necessary and is done for efficiency.
+Notice that there are different code paths for S3 versus other locations; that is not strictly necessary, but is done only for efficiency.
 `NetcdfFile.open("s3://...")` returns a perfectly working `NetcdfFile`, but its underlying buffer size and cache behavior are not optimal for GDDP.
 That is further discussed [below](#future-work-better-s3-caching).
 
@@ -168,7 +171,7 @@ is where the whole first tile (tile for day zero) is read into a GeoTrellis tile
 
 Notice the assignments `latArray = vs.get(1)...`, `lonArray = vs.get(2)...`, and `tileData = vs.get(3)...`.
 These are enabled by prior knowledge that in GDDP files, the variable with index 1 is an array of latitudes, the variable with index 2 is an array of longitudes, and the variable with index 3 is three-dimensional temperature data.
-Perhaps a more robust way to do this would be to iterate through the list of variables and match against the string returned by `vs.get(i).getFullName()`, but the present approach is good enough for government work.
+Perhaps a more robust way to do that would be to iterate through the list of variables and match against the string returned by `vs.get(i).getFullName()`, but the present approach is good enough for government work.
 
 The dimensions of the temperature data are time (in units of days), latitude, and longitude, in that order.
 `vs.get(3).slice(0, 0)` requests a slice with the first (0th) index of the first dimension fixed; it requests the whole tile from the first (0th) day.
@@ -203,23 +206,24 @@ uses the slicing capability of the `read` method to get the temperature value at
 
 As mentioned above [here](#example-2-file-on-s3) and [here](#open), the efficiency of reading from S3 is an area for future improvement.
 
-There are many different types of files that have the extension `.nc`, in this brief discussion we will restrict attention the GDDP dataset;
-those files store the temperature data in compressed chunks of roughly 32 KB in size, and those chunks are indexed by a [B-tree](https://en.wikipedia.org/wiki/B-tree) with internal nodes of size 16 KB.
+There are many different types of files that have the extension `.nc`, in this brief discussion we will restrict attention the GDDP dataset.
+Those files store the temperature data in compressed chunks of roughly 32 KB in size, and those chunks are indexed by a [B-tree](https://en.wikipedia.org/wiki/B-tree) with internal nodes of size 16 KB.
 
 Within the S3 reader, a simple FIFO cache has been implemented.
-The `S3RandomAccessFile` implementation emulates and a random access file, and for compatibility must maintain a read/write buffer.
+The `S3RandomAccessFile` implementation emulates a random access file, and for compatibility must maintain a read/write buffer.
 For simplicity, the cache block size used is twice the size of that buffer.
 
 When one makes a call of the form `NetcdfFile.open("s3://...")`, the buffer size used is 512 KB which results in 1 MB cache blocks.
 That implies that every request to read an uncached datum incurs a 1 MB download.
 For many access patterns, such as reading random whole tiles, that is not a problem and in fact is the intended behavior.
 However, reading small windows or single pixels from different tiles is not a good access pattern for this scheme.
-Such a pattern would result in a lot of extra data being downloaded and cached when accessing leaves, as well as the eviction of cache blocks containing internals nodes (which presumably may be revisited) in favor of cache blocks containing single-use leaf nodes.
+
+Such a pattern would result in a lot of extra data being downloaded and cached when accessing leaves, as well as the eviction of large cache blocks containing internals nodes (which presumably may be revisited) in favor of cache blocks containing (single-use) leaf nodes.
 The special-case that contains the line `raf = new ucar.unidata.io.s3.S3RandomAccessFile(uri, 1<<15, 1<<24)` creates an `S3RandomAccessFile` with a 32 KB read/write buffer and 64 KB cache blocks.
 The 64 KB cache blocks are a much better fit than the 1 MB ones that would have been created by default.
 
 Examination of the access patterns generated by point queries, e.g. `read("107,22,7")`, shows that accesses are in general not aligned to block boundaries which frequently results in two blocks being fetched when one would have done.
 There is also the question of unnecessary cache evication that was raised above.
-One of many ideas for improvement is to implement a cache that pays attention to the particular structure of the file rather than just managing blocks of bytes as the current one does.
+One of many ideas for improvement is to implement a cache that pays attention to the particular structure of the file rather than just managing blocks of bytes.
 That can potentially be done by inspecting the program state before a read is performed to determine whether the request is for an internal node or a leaf.
 If it is an internal node, the entire node can be cached (or returned from the cache), and if it is a leaf the request can be serviced without involving the cache.
