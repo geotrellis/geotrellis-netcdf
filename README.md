@@ -132,7 +132,7 @@ In this section, we will address some of the key points that can be found in thi
 
 ## Open ##
 
-[This code](gddp/src/main/scala/Gddp.scala#L37-L47):
+[This code](https://github.com/geotrellis/geotrellis-netcdf/tree/f6ba0279a306a629a6712500746fe8d211447de0/gddp/src/main/scala/Gddp.scala#L37-L47):
 ```scala
 def open(uri: String) = {
   if (uri.startsWith("s3:")) {
@@ -151,7 +151,7 @@ That is further discussed [below](#future-work-better-s3-caching).
 
 ## Whole Tile Read ##
 
-[This code](gddp/src/main/scala/Gddp.scala#L65-L78):
+[This code](https://github.com/geotrellis/geotrellis-netcdf/tree/f6ba0279a306a629a6712500746fe8d211447de0/gddp/src/main/scala/Gddp.scala#L65-L78):
 ```scala
 val ncfile = open(netcdfUri)
 val vs = ncfile.getVariables()
@@ -180,7 +180,7 @@ The assignment `nodata = attribs.get(0).getValues().getFloat(0)` gets the "fill 
 
 ## Partial Tile Read ##
 
-[This code](gddp/src/main/scala/Gddp.scala#L132-L135):
+[This code](https://github.com/geotrellis/geotrellis-netcdf/tree/f6ba0279a306a629a6712500746fe8d211447de0/gddp/src/main/scala/Gddp.scala#L132-L135):
 ```scala
 val array = tasmin
   .read(s"$t,$ySliceStart:$ySliceStop,$xSliceStart:$xSliceStop")
@@ -194,7 +194,7 @@ the first is a time (specified by an integral index), the second is a latitude r
 
 ## Point Read ##
 
-[This code](gddp/src/main/scala/Gddp.scala#L158-L160):
+[This code](https://github.com/geotrellis/geotrellis-netcdf/tree/f6ba0279a306a629a6712500746fe8d211447de0/gddp/src/main/scala/Gddp.scala#L158-L160):
 ```scala
 tasmin
   .read(s"$t,$ySlice,$xSlice")
