@@ -16,9 +16,13 @@ import org.apache.log4j.Logger
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.storage.StorageLevel
+
 import ucar.nc2._
 
 import java.io._
+
+import scala.collection.JavaConverters._
+
 
 object Gddp {
 
@@ -68,8 +72,13 @@ object Gddp {
     val ucarType = vs.get(1).getDataType()
     val latArray = vs.get(1).read().get1DJavaArray(ucarType).asInstanceOf[Array[Float]]
     val lonArray = vs.get(2).read().get1DJavaArray(ucarType).asInstanceOf[Array[Float]]
-    val attribs = vs.get(3).getAttributes()
-    val nodata = attribs.get(0).getValues().getFloat(0)
+    val tasmin = vs.asScala
+      .filter({ v => v.getFullName == "tasmin" || v.getFullName == "tasmax" || v.getFullName == "pr" })
+      .head
+    val nodata = tasmin
+      .getAttributes.asScala
+      .filter({ v => v.getFullName == "_FillValue" })
+      .head.getValues.getFloat(0)
     val wholeTile = {
       val tileData = vs.get(3).slice(0, 0)
       val Array(y, x) = tileData.getShape()
@@ -126,7 +135,10 @@ object Gddp {
     val rdd1 = sc.parallelize(Range(0, 365))
       .mapPartitions({ itr =>
         val ncfile = open(netcdfUri)
-        val tasmin = ncfile.getVariables().get(3)
+        val tasmin = ncfile
+          .getVariables.asScala
+          .filter({ v => v.getFullName == "tasmin" || v.getFullName == "tasmax" || v.getFullName == "pr" })
+          .head
 
         itr.map({ t =>
           val array = tasmin
@@ -152,7 +164,10 @@ object Gddp {
     val values = sc.parallelize(Range(0, 365))
       .mapPartitions({ itr =>
         val ncfile = open(netcdfUri)
-        val tasmin = ncfile.getVariables().get(3)
+        val tasmin = ncfile
+          .getVariables.asScala
+          .filter({ v => v.getFullName == "tasmin" || v.getFullName == "tasmax" || v.getFullName == "pr" })
+          .head
 
         itr.map({ t =>
           tasmin
